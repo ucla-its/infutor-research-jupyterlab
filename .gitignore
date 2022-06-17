@@ -1,5 +1,6 @@
 *.csv
 *_secret
+status_*.txt
 
 
 etc/
