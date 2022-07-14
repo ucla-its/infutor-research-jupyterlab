@@ -1,6 +1,6 @@
 *.csv
 *_secret
-status_*.txt
+*status*.txt
 
 
 etc/
