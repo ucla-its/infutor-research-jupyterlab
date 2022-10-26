@@ -1,5 +1,7 @@
 *.dta
 *.csv
+*.pkl
+*.pickle
 *_secret
 *status*.txt
 

@@ -1,0 +1,13 @@
+project name: infutor+census
+
+verbose: true
+lines per chunk: 1_250_000
+force re-extraction: false
+create csv: false
+
+zip+4 types: [H, S, R]
+move creation method: 0
+  # 0: missing data is not dropped
+  # 1: drop individuals with missing data
+  # 2: drop moves with missing data
+county codes: ["037", "059"]
