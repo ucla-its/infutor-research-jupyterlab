@@ -1,0 +1,8 @@
+verbose: true
+lines per chunk: 1_250_000
+
+periods:
+  - infutor interval: [2008, 2012]
+    census year: 10
+  - infutor interval: [2013, 2018]
+    census year: 15
