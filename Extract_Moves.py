@@ -69,14 +69,14 @@ dtype_all_states = {
     'effdate': 'float',
     'lat1': 'float',
     'lon1': 'float',
-    'fips1': 'object',
+    'fips1': 'float',
 }
 for i in range(2, 11):
     dtype_all_states[f'z4type{i}'] = 'category'
     dtype_all_states[f'effdate{i}'] = 'float'
     dtype_all_states[f'lat{i}'] = 'float'
     dtype_all_states[f'lon{i}'] = 'float'
-    dtype_all_states[f'fips{i}'] = 'object'
+    dtype_all_states[f'fips{i}'] = 'float'
 
 list_dict_col_names = [
     {
@@ -98,12 +98,17 @@ for i in range(2, 11):
         }
     )
 
+# FIXME: Maybe handle "Not in California" differently
+
+na_values_all_states = 'Not in California'
+
 # Load all_states
 it_all_states = pd.read_csv(
     "./data/all_states.csv",
     usecols=usecols_all_states,
     dtype=dtype_all_states,
-    chunksize=lines_per_chunk
+    chunksize=lines_per_chunk,
+    na_values=na_values_all_states
 )
 
 # Define move creation method
@@ -211,16 +216,18 @@ for index, chunk in enumerate(it_all_states):
 
     # Filter by county code
     df_filtered_moves = df_all_moves[
-        df_all_moves['orig_fips'].str[2:5].isin(county_codes) |
-            df_all_moves['dest_fips'].str[2:5].isin(county_codes)
+        df_all_moves['orig_fips'].astype('string').str[1:4].isin(county_codes)
+        | df_all_moves['dest_fips'].astype('string').str[1:4].isin(county_codes)
     ]
 
-    df_filtered_moves['dist'] = haversine(
-        df_filtered_moves['orig_lat'],
-        df_filtered_moves['orig_lon'],
-        df_filtered_moves['dest_lat'],
-        df_filtered_moves['dest_lon']
-    )
+    # Calculate move distance in km
+    with pd.option_context('mode.chained_assignment', None):
+        df_filtered_moves['dist'] = haversine(
+            df_filtered_moves['orig_lat'],
+            df_filtered_moves['orig_lon'],
+            df_filtered_moves['dest_lat'],
+            df_filtered_moves['dest_lon']
+        )
 
     # Write to file
     df_final_moves = df_filtered_moves[
