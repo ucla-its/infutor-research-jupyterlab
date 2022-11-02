@@ -66,7 +66,7 @@ def year_to_effdate(year):
     return 100 * year + 1
 
 for period in periods:
-    results = {}
+    entire_sample_results = {}
 
     infutor_start, infutor_end = period['infutor interval']
     census_year = period['census year']
@@ -77,87 +77,116 @@ for period in periods:
         )
     ]
 
-    results[
+    # FIXME: Assumes any na is from missing first records
+    df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
+    
+
+    entire_sample_results[
         "Total population at beginning of the period"
     ] = df_census[f'totalpop{census_year}'].sum()
 
 
-    results[
-        "Number of total moves that began in high-loss tracts"
-    ] = df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid']).sum()
+    # results[
+    #     "Number of total moves that began in high-loss tracts"
+    # ] = df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid']).sum()
 
-    results[
-        "Number of total moves that began in high-loss tracts and ended in the "
-        "same tract"
+    entire_sample_results[
+        "Number of total moves"
+    ] = df_actual_moves.shape[0]
+
+    # results[
+    #     "Number of total moves that began in high-loss tracts and ended in the "
+    #     "same tract"
+    # ] = (
+    #         df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #         & (df_period_moves['orig_fips'] == df_period_moves['dest_fips'])
+    # ).sum()
+
+    entire_sample_results[
+        "Number of total moves that began and ended in the same tract"
+    ] = (df_actual_moves['orig_fips'] == df_actual_moves['dest_fips']).sum()
+
+    # results[
+    #     "Number of total moves that began in high-loss tracts and ended in a "
+    #     "different high-loss tract"
+    # ] = (
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    #     & (df_period_moves['orig_fips'] != df_period_moves['dest_fips'])
+    # ).sum()
+
+    # results[
+    #     "Number of total moves that began in the tract and ended outside LA or "
+    #     "Orange Counties"
+    # ] = (
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & ~(df_period_moves['dest_fips'].astype('string')
+    #                                     .str[1:4]
+    #                                     .isin(['037', '059']))
+    # ).sum()
+
+    entire_sample_results[
+        "Number of total moves that ended outside LA or Orange Counties"
     ] = (
-            df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-            & (df_period_moves['orig_fips'] == df_period_moves['dest_fips'])
+        ~df_actual_moves['dest_fips'].astype('string')
+                                     .str[1:4]
+                                     .isin(['037', '059'])
     ).sum()
 
-    results[
-        "Number of total moves that began in high-loss tracts and ended in a "
-        "different high-loss tract"
-    ] = (
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
-        & (df_period_moves['orig_fips'] != df_period_moves['dest_fips'])
-    ).sum()
-
-    results[
-        "Number of total moves that began in the tract and ended outside LA or "
-        "Orange Counties"
-    ] = (
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & ~(df_period_moves['dest_fips'].astype('string')
-                                        .str[1:4]
-                                        .isin(['037', '059']))
-    ).sum()
-
-    results[
-        "Number of total moves that began in the tract and ended outside the "
-        "high-loss deciles"
-    ] = (
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & ~df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
-    ).sum()
+    # results[
+    #     "Number of total moves that began in the tract and ended outside the "
+    #     "high-loss deciles"
+    # ] = (
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & ~df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    # ).sum()
 
     
-    dist_moves_out = df_period_moves[
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & ~df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    # dist_moves_out = df_period_moves[
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & ~df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    # ]['dist']
+
+    dist_moves_out = df_actual_moves[
+        ~df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
     ]['dist']
 
     dist_q3, dist_q1 = dist_moves_out.quantile(
         [0.75, 0.25], interpolation='midpoint'
     )
     dist_iqr = dist_q3 - dist_q1
-    results[
+    entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
     ] = dist_iqr
 
-    results[
+    entire_sample_results[
         "Mean distance of moves out"
     ] = dist_moves_out.mean()
 
 
-    # FIXME: Assumes any na is from missing first records
-    total_moves = df_period_moves['date_arrived'].count()
+    # moves_that_stay_within_tract = (
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & (df_period_moves['orig_fips'] == df_period_moves['dest_fips'])
+    # ).sum()
+    # results[
+    #     "Share of moves that stay within tract"
+    # ] = moves_that_stay_within_tract / total_moves
 
     moves_that_stay_within_tract = (
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & (df_period_moves['orig_fips'] == df_period_moves['dest_fips'])
+        df_actual_moves['orig_fips'] == df_actual_moves['dest_fips']
     ).sum()
-    results[
+    entire_sample_results[
         "Share of moves that stay within tract"
-    ] = moves_that_stay_within_tract / total_moves
+    ] = (moves_that_stay_within_tract
+            / entire_sample_results['Number of total moves'])
 
-    moves_that_stay_within_decile = (
-        df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
-    ).sum()
-    results[
-        "Share of moves that stay within high-loss decile"
-    ] = moves_that_stay_within_decile / total_moves
+    # moves_that_stay_within_decile = (
+    #     df_period_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & df_period_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    # ).sum()
+    # results[
+    #     "Share of moves that stay within high-loss decile"
+    # ] = moves_that_stay_within_decile / total_moves
 
 
     # TODO: weighted averages and median
@@ -167,10 +196,10 @@ for period in periods:
 
 
     # FIXME: Assumes any na is from missing first records
-    df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
-    results[
-        "Number of total moves into the high-loss tracts"
-    ] = df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid']).sum()
+    # df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
+    # results[
+    #     "Number of total moves into the high-loss tracts"
+    # ] = df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid']).sum()
     
 
     # TODO: calculate more density stuff
@@ -178,28 +207,28 @@ for period in periods:
 
 
     # FIXME: Assumes any na is from missing first records
-    df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
-    dist_moves_in = df_actual_moves[
-        ~df_actual_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-        & df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
-    ]['dist']
+    # df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
+    # dist_moves_in = df_actual_moves[
+    #     ~df_actual_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
+    #     & df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+    # ]['dist']
 
-    dist_q3, dist_q1 = dist_moves_in.quantile(
-        [0.75, 0.25], interpolation='midpoint'
-    )
-    dist_iqr = dist_q3 - dist_q1
-    results[
-        "Interquartile range of move distance for moves that end in high-loss "
-        "tracts"
-    ] = dist_iqr
+    # dist_q3, dist_q1 = dist_moves_in.quantile(
+    #     [0.75, 0.25], interpolation='midpoint'
+    # )
+    # dist_iqr = dist_q3 - dist_q1
+    # results[
+    #     "Interquartile range of move distance for moves that end in high-loss "
+    #     "tracts"
+    # ] = dist_iqr
 
-    results[
-        "Mean move distance for the above"
-    ] = dist_moves_in.mean()
+    # results[
+    #     "Mean move distance for the above"
+    # ] = dist_moves_in.mean()
 
 
     # TODO: calculate migration rates
 
 
     print(f"\nperiod {period} results:\n")
-    pprint(results)
+    pprint(entire_sample_results)

@@ -135,6 +135,8 @@ def preshift_dropna(df_areas):
     df_moves = dont_dropna(df_areas)
     return df_moves
 
+# TODO: Maybe rebrand as drop first origin
+
 def postshift_dropna(df_areas):
     # dropna after shifting
     df_moves = dont_dropna(df_areas)
