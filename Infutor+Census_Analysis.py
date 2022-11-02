@@ -66,8 +66,6 @@ def year_to_effdate(year):
     return 100 * year + 1
 
 for period in periods:
-    entire_sample_results = {}
-
     infutor_start, infutor_end = period['infutor interval']
     census_year = period['census year']
 
@@ -77,9 +75,23 @@ for period in periods:
         )
     ]
 
-    # FIXME: Assumes any na is from missing first records
     df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
     
+
+    # FIXME: Everything
+    area_results = {}
+
+    area_results[
+        "Total population at beginning of the period"
+    ] = (df_actual_moves.groupby('orig_fips')
+                        .size()
+                        .reindex(df_high_loss_areas['tractid'], fill_value=0))
+
+    with(pd.option_context('display.max_rows', None)):
+        print(area_results["Total population at beginning of the period"])
+
+
+    entire_sample_results = {}
 
     entire_sample_results[
         "Total population at beginning of the period"
