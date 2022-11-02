@@ -17,18 +17,11 @@ arg_census = {
 df_census = read_stata(**arg_census)
 
 df_high_loss_areas = (
-    df_census[df_census['absloss10'] == 1].drop('absloss10', axis=1))
+    df_census[df_census['absloss10'] == 1].drop('absloss10', axis=1)
+)
 
 # Save pickle to use later
 df_high_loss_areas.to_pickle('./data/infutor+census/df_high_loss_areas.pkl')
 
 # Save csv for manual inspection
-df_high_loss_areas['tractid'] = (
-    df_high_loss_areas['tractid'].map('{:.0f}'.format))
-
-arg_csv = {
-    'path_or_buf': './data/infutor+census/high-loss_areas.csv',
-    'index': False
-}
-
-df_high_loss_areas.to_csv(**arg_csv)
+df_high_loss_areas.to_csv('./data/infutor+census/high-loss_areas.csv')
