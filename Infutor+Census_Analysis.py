@@ -69,8 +69,12 @@ if verbose:
 def years_to_effdate(beginning, end):
     return (100 * beginning + 1), (100 * end + 12)
 
-def count_moves_per_area(moves, areas=se_high_loss_areas):
-    return moves.groupby('orig_fips').size().reindex(areas, fill_value=0)
+def agg_moves_by_area(moves, func='size', subset=[], areas=se_high_loss_areas):
+    se_result = (moves.groupby('orig_fips')[subset]
+                      .agg(func)
+                      .reindex(areas, fill_value=0)
+                      .squeeze())
+    return se_result
 
 def calculate_iqr(se):
     q3, q1 = se.quantile([0.75, 0.25], interpolation='midpoint')
@@ -108,12 +112,12 @@ for period in periods:
 
     area_results[
         "Number of total moves that began in high-loss tracts"
-    ] = count_moves_per_area(moves_from_high)
+    ] = agg_moves_by_area(moves_from_high)
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in the "
         "same tract"
-    ] = count_moves_per_area(
+    ] = agg_moves_by_area(
         moves_from_high[
             moves_from_high['orig_fips'] == moves_from_high['dest_fips']
         ]
@@ -122,7 +126,7 @@ for period in periods:
     area_results[
         "Number of total moves that began in high-loss tracts and ended in a "
         "different high-loss tract"
-    ] = count_moves_per_area(
+    ] = agg_moves_by_area(
         moves_from_high[
             moves_from_high['dest_fips'].isin(se_high_loss_areas)
             & (moves_from_high['orig_fips'] != moves_from_high['dest_fips'])
@@ -132,7 +136,7 @@ for period in periods:
     area_results[
         "Number of total moves that began in the tract and ended outside LA or "
         "Orange Counties"
-    ] = count_moves_per_area(
+    ] = agg_moves_by_area(
         moves_from_high[
             ~(moves_from_high['dest_fips'].astype('string')
                                           .str[1:4]
@@ -148,21 +152,15 @@ for period in periods:
     area_results[
         "Number of total moves that began in the tract and ended outside the "
         "high-loss deciles"
-    ] = count_moves_per_area(moves_out)
+    ] = agg_moves_by_area(moves_out)
 
     area_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = (moves_out.groupby('orig_fips')[['dist']]
-                  .agg(calculate_iqr)
-                  .reindex(se_high_loss_areas, fill_value=0)
-                  .squeeze())
+    ] = agg_moves_by_area(moves_out, calculate_iqr, ['dist'])
 
     area_results[
         "Mean distance of moves out"
-    ] = (moves_out.groupby('orig_fips')[['dist']]
-                  .mean()
-                  .reindex(se_high_loss_areas, fill_value=0)
-                  .squeeze())
+    ] = agg_moves_by_area(moves_out, 'mean', ['dist'])
 
 
     area_results[
@@ -178,7 +176,7 @@ for period in periods:
     area_results[
         "Share of moves that stay within high-loss decile"
     ] = (
-        count_moves_per_area(
+        agg_moves_by_area(
             moves_from_high[
                 moves_from_high['dest_fips'].isin(se_high_loss_areas)
             ]
