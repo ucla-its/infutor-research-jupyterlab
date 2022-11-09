@@ -3,6 +3,7 @@ from glob import glob
 from pprint import pprint
 
 import pandas as pd
+import numpy as np
 
 
 ### Configuration ###
@@ -69,10 +70,16 @@ if verbose:
 def years_to_effdate(beginning, end):
     return (100 * beginning + 1), (100 * end + 12)
 
-def agg_moves_by_area(moves, func='size', subset=[], areas=se_high_loss_areas):
+def agg_moves_by_area(
+    moves,
+    func='size',
+    subset=[],
+    fill_value=0,
+    areas=se_high_loss_areas
+):
     se_result = (moves.groupby('orig_fips')[subset]
                       .agg(func)
-                      .reindex(areas, fill_value=0)
+                      .reindex(areas, fill_value=fill_value)
                       .squeeze())
     return se_result
 
@@ -156,11 +163,11 @@ for period in periods:
 
     area_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = agg_moves_by_area(moves_out, calculate_iqr, ['dist'])
+    ] = agg_moves_by_area(moves_out, calculate_iqr, ['dist'], np.NaN)
 
     area_results[
         "Mean distance of moves out"
-    ] = agg_moves_by_area(moves_out, 'mean', ['dist'])
+    ] = agg_moves_by_area(moves_out, 'mean', ['dist'], np.NaN)
 
 
     area_results[
