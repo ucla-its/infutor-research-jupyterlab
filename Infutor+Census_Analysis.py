@@ -191,36 +191,34 @@ for period in periods:
     # TODO: density stuff percentages
 
 
-    # FIXME: Assumes any na is from missing first records
-    # df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
-    # results[
-    #     "Number of total moves into the high-loss tracts"
-    # ] = df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid']).sum()
+    moves_in = df_actual_moves[
+        df_actual_moves['dest_fips'].isin(se_high_loss_areas)
+    ]
+
+    area_results[
+        "Number of total moves into the high-loss tracts"
+    ] = (moves_in.groupby('dest_fips')
+                 .size()
+                 .reindex(se_high_loss_areas, fill_value=0))
 
 
     # TODO: calculate more density stuff
 
 
+    area_results[
+        "Interquartile range of move distance for moves that end in high-loss "
+        "tracts"
+    ] = (moves_in.groupby('dest_fips')[['dist']]
+                 .agg(calculate_iqr)
+                 .reindex(se_high_loss_areas)
+                 .squeeze())
 
-    # FIXME: Assumes any na is from missing first records
-    # df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
-    # dist_moves_in = df_actual_moves[
-    #     ~df_actual_moves['orig_fips'].isin(df_high_loss_areas['tractid'])
-    #     & df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
-    # ]['dist']
-
-    # dist_q3, dist_q1 = dist_moves_in.quantile(
-    #     [0.75, 0.25], interpolation='midpoint'
-    # )
-    # dist_iqr = dist_q3 - dist_q1
-    # results[
-    #     "Interquartile range of move distance for moves that end in high-loss "
-    #     "tracts"
-    # ] = dist_iqr
-
-    # results[
-    #     "Mean move distance for the above"
-    # ] = dist_moves_in.mean()
+    area_results[
+        "Mean move distance for the above"
+    ] = (moves_in.groupby('dest_fips')[['dist']]
+                 .mean()
+                 .reindex(se_high_loss_areas)
+                 .squeeze())
 
 
     # TODO: calculate migration rates
