@@ -72,12 +72,13 @@ def years_to_effdate(beginning, end):
 
 def agg_moves_by_area(
     moves,
+    by,
     func='size',
     subset=[],
     fill_value=0,
     areas=se_high_loss_areas
 ):
-    se_result = (moves.groupby('orig_fips')[subset]
+    se_result = (moves.groupby(by)[subset]
                       .agg(func)
                       .reindex(areas, fill_value=fill_value)
                       .squeeze())
@@ -119,7 +120,7 @@ for period in periods:
 
     area_results[
         "Number of total moves that began in high-loss tracts"
-    ] = agg_moves_by_area(moves_from_high)
+    ] = agg_moves_by_area(moves_from_high, 'orig_fips')
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in the "
@@ -127,7 +128,8 @@ for period in periods:
     ] = agg_moves_by_area(
         moves_from_high[
             moves_from_high['orig_fips'] == moves_from_high['dest_fips']
-        ]
+        ],
+        'orig_fips'
     )
 
     area_results[
@@ -137,7 +139,8 @@ for period in periods:
         moves_from_high[
             moves_from_high['dest_fips'].isin(se_high_loss_areas)
             & (moves_from_high['orig_fips'] != moves_from_high['dest_fips'])
-        ]
+        ],
+        'orig_fips'
     )
 
     area_results[
@@ -148,7 +151,8 @@ for period in periods:
             ~(moves_from_high['dest_fips'].astype('string')
                                           .str[1:4]
                                           .isin(['037', '059']))
-        ]
+        ],
+        'orig_fips'
     )
 
 
@@ -159,15 +163,21 @@ for period in periods:
     area_results[
         "Number of total moves that began in the tract and ended outside the "
         "high-loss deciles"
-    ] = agg_moves_by_area(moves_out)
+    ] = agg_moves_by_area(moves_out, 'orig_fips')
 
     area_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = agg_moves_by_area(moves_out, calculate_iqr, ['dist'], np.NaN)
+    ] = agg_moves_by_area(
+        moves_out,
+        'orig_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
 
     area_results[
         "Mean distance of moves out"
-    ] = agg_moves_by_area(moves_out, 'mean', ['dist'], np.NaN)
+    ] = agg_moves_by_area(moves_out, 'orig_fips', 'mean', ['dist'], np.NaN)
 
 
     area_results[
@@ -186,7 +196,8 @@ for period in periods:
         agg_moves_by_area(
             moves_from_high[
                 moves_from_high['dest_fips'].isin(se_high_loss_areas)
-            ]
+            ],
+            'orig_fips'
         )
         / area_results['Number of total moves that began in high-loss tracts']
     )
@@ -204,9 +215,7 @@ for period in periods:
 
     area_results[
         "Number of total moves into the high-loss tracts"
-    ] = (moves_in.groupby('dest_fips')
-                 .size()
-                 .reindex(se_high_loss_areas, fill_value=0))
+    ] = agg_moves_by_area(moves_in, 'dest_fips')
 
 
     # TODO: calculate more density stuff
@@ -215,17 +224,17 @@ for period in periods:
     area_results[
         "Interquartile range of move distance for moves that end in high-loss "
         "tracts"
-    ] = (moves_in.groupby('dest_fips')[['dist']]
-                 .agg(calculate_iqr)
-                 .reindex(se_high_loss_areas)
-                 .squeeze())
+    ] = agg_moves_by_area(
+        moves_in,
+        'dest_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
 
     area_results[
         "Mean move distance for the above"
-    ] = (moves_in.groupby('dest_fips')[['dist']]
-                 .mean()
-                 .reindex(se_high_loss_areas)
-                 .squeeze())
+    ] = agg_moves_by_area(moves_in, 'dest_fips', 'mean', ['dist'], np.NaN)
 
 
     # TODO: calculate migration rates
