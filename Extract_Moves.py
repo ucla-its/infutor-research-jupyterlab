@@ -52,8 +52,6 @@ if verbose:
     else:
         print("Processing all_states.csv...")
 
-# TODO: Change settings
-
 # Settings
 usecols_all_states = ['z4type', 'effdate']
 for i in range(2, 11):
