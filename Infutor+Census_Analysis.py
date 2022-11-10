@@ -89,6 +89,9 @@ def calculate_iqr(se):
     iqr = q3 - q1
     return iqr
 
+def in_counties(fips, county_codes=['037', '059']):
+    return fips.astype('string').str[1:4].isin(county_codes)
+
 for period in periods:
     infutor_start, infutor_end = period['infutor interval']
     census_year = period['census year']
@@ -147,11 +150,7 @@ for period in periods:
         "Number of total moves that began in the tract and ended outside LA or "
         "Orange Counties"
     ] = agg_moves_by_area(
-        moves_from_high[
-            ~(moves_from_high['dest_fips'].astype('string')
-                                          .str[1:4]
-                                          .isin(['037', '059']))
-        ],
+        moves_from_high[~in_counties(moves_from_high['dest_fips'])],
         'orig_fips'
     )
 
@@ -257,24 +256,16 @@ for period in periods:
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
-    ] = (
-        ~df_actual_moves['dest_fips'].astype('string')
-                                     .str[1:4]
-                                     .isin(['037', '059'])
-    ).sum()
+    ] = (~in_counties(df_actual_moves['dest_fips'])).sum()
 
 
     dist_moves_out = df_actual_moves[
-        ~df_actual_moves['dest_fips'].isin(df_high_loss_areas['tractid'])
+        ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
     ]['dist']
 
-    dist_q3, dist_q1 = dist_moves_out.quantile(
-        [0.75, 0.25], interpolation='midpoint'
-    )
-    dist_iqr = dist_q3 - dist_q1
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = dist_iqr
+    ] = calculate_iqr(dist_moves_out)
 
     entire_sample_results[
         "Mean distance of moves out"
@@ -305,4 +296,5 @@ for period in periods:
 
     with pd.option_context('display.max_columns', None):
         print(f"\nperiod {period} results:\n")
+        pprint(entire_sample_results)
         print(df_results)
