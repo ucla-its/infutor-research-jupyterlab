@@ -202,8 +202,27 @@ for period in periods:
     )
     
 
-    # TODO: weighted averages and median
+    moves_to_LA_OC_not_in_high = df_actual_moves[
+        in_counties(df_actual_moves['dest_fips'])
+        & ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
+    ]
 
+    # TODO: weighted averages and median
+    # [X]: moves <- filter(all_moves)
+    # []: num_moves <- size(group(moves, (orig, dest)))
+    # []: move_totals <- size(group(moves, (orig)))
+    # []: weighted_densities <- num_moves * popdens
+    # []: result <- sum(weighted_densities) / move_totals
+
+    # area_results[
+    #     "Weighted average of destination tracts for moves that end in LA and "
+    #     "Orange County but are not in high-loss decile"
+    # ]
+
+    # area_results[
+    #     "Median density of destination tracts for moves that end in LA and "
+    #     "Orange County but are not in high-loss decile"
+    # ]
 
     # TODO: density stuff percentages
 
@@ -266,7 +285,7 @@ for period in periods:
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
     ] = calculate_iqr(dist_moves_out)
-
+    
     entire_sample_results[
         "Mean distance of moves out"
     ] = dist_moves_out.mean()
