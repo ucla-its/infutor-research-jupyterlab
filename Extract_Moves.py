@@ -1,3 +1,4 @@
+from os import remove
 from pathlib import Path
 
 from yaml import safe_load
@@ -28,6 +29,12 @@ if verbose:
     print("Creating status file and output directories...")
 
 # Create status file
+if force:
+    try:
+        remove(f"./{project_name}_status-{lines_per_chunk}.txt")
+    except FileNotFoundError:
+        pass
+
 try:
     f = open(f"./{project_name}_status-{lines_per_chunk}.txt")
 except FileNotFoundError:
