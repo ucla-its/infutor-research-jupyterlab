@@ -209,15 +209,27 @@ for period in periods:
 
     # TODO: weighted averages and median
     # [X]: moves <- filter(all_moves)
-    # []: num_moves <- size(group(moves, (orig, dest)))
-    # []: move_totals <- size(group(moves, (orig)))
-    # []: weighted_densities <- num_moves * popdens
-    # []: result <- sum(weighted_densities) / move_totals
+    # [X]: num_moves <- size(group(moves, (orig, dest)))
+    # [X]: move_totals <- size(group(moves, (orig)))
+    # [X]: weighted_densities <- num_moves * popdens
+    # [X]: result <- sum(weighted_densities) / move_totals
 
-    # area_results[
-    #     "Weighted average of destination tracts for moves that end in LA and "
-    #     "Orange County but are not in high-loss decile"
-    # ]
+    popdens_by_area = df_census[
+        ['tractid', f'popdens{census_year}']
+    ].set_index('tractid').squeeze()
+
+    move_totals = moves_to_LA_OC_not_in_high.groupby('orig_fips').size()
+
+    area_results[
+        "Weighted average density of destination tracts for moves that end in "
+        "LA and Orange County but are not in high-loss decile"
+    ] = (moves_to_LA_OC_not_in_high.groupby(['orig_fips', 'dest_fips'])
+                                   .size()
+                                   .unstack(fill_value=0)
+                                   .mul(popdens_by_area)
+                                   .sum(axis=1)
+                                   .div(move_totals)
+                                   .reindex(se_high_loss_areas))
 
     # area_results[
     #     "Median density of destination tracts for moves that end in LA and "
