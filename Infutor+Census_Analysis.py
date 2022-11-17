@@ -231,10 +231,15 @@ for period in periods:
                                    .div(move_totals)
                                    .reindex(se_high_loss_areas))
 
-    # area_results[
-    #     "Median density of destination tracts for moves that end in LA and "
-    #     "Orange County but are not in high-loss decile"
-    # ]
+    area_results[
+        "Median density of destination tracts for moves that end in LA and "
+        "Orange County but are not in high-loss decile"
+    ] = (moves_to_LA_OC_not_in_high.dropna(subset=['orig_fips'])
+                                   .set_index('orig_fips')['dest_fips']
+                                   .map(popdens_by_area.to_dict())
+                                   .groupby('orig_fips')
+                                   .median()
+                                   .reindex(se_high_loss_areas))
 
     # TODO: density stuff percentages
 
