@@ -207,13 +207,6 @@ for period in periods:
         & ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
     ]
 
-    # TODO: weighted averages and median
-    # [X]: moves <- filter(all_moves)
-    # [X]: num_moves <- size(group(moves, (orig, dest)))
-    # [X]: move_totals <- size(group(moves, (orig)))
-    # [X]: weighted_densities <- num_moves * popdens
-    # [X]: result <- sum(weighted_densities) / move_totals
-
     popdens_by_area = df_census[
         ['tractid', f'popdens{census_year}']
     ].set_index('tractid').squeeze()
