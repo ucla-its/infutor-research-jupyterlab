@@ -164,10 +164,14 @@ for period in periods:
         "high-loss deciles"
     ] = agg_moves_by_area(moves_out, 'orig_fips')
 
+    all_moves_out = moves_from_high[
+        moves_from_high['orig_fips'] != moves_from_high['dest_fips']
+    ]
+
     area_results[
-        "Interquartile range of move distances out of high-loss tracts"
+        "Interquartile range of all move distances out of high-loss tracts"
     ] = agg_moves_by_area(
-        moves_out,
+        all_moves_out,
         'orig_fips',
         calculate_iqr,
         ['dist'],
@@ -175,8 +179,33 @@ for period in periods:
     )
 
     area_results[
-        "Mean distance of moves out"
-    ] = agg_moves_by_area(moves_out, 'orig_fips', 'mean', ['dist'], np.NaN)
+        "Mean distance of all moves out"
+    ] = agg_moves_by_area(all_moves_out, 'orig_fips', 'mean', ['dist'], np.NaN)
+
+    moves_end_in_LA_OC = all_moves_out[
+        all_moves_out['orig_fips'] != all_moves_out['dest_fips']
+    ]
+
+    area_results[
+        "Interquartile range of move distances out of high-loss tracts that "
+        "end in LA or the OC"
+    ] = agg_moves_by_area(
+        moves_end_in_LA_OC,
+        'orig_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
+
+    area_results[
+        "Mean distance of moves out that end in LA or the OC"
+    ] = agg_moves_by_area(
+        moves_end_in_LA_OC,
+        'orig_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
 
 
     area_results[
