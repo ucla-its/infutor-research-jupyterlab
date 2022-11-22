@@ -1,5 +1,6 @@
 from yaml import safe_load
 from glob import glob
+import warnings
 from pprint import pprint
 
 import pandas as pd
@@ -230,18 +231,18 @@ for period in periods:
         )
         / area_results['Number of total moves that began in high-loss tracts']
     )
-    
 
-    moves_to_LA_OC_not_in_high = df_actual_moves[
-        in_counties(df_actual_moves['dest_fips'])
-        & ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
+
+    moves_to_LA_OC_not_in_high = moves_from_high[
+        in_counties(moves_from_high['dest_fips'])
+        & ~moves_from_high['dest_fips'].isin(se_high_loss_areas)
     ]
 
     popdens_by_area = df_census[
         ['tractid', f'popdens{census_year}']
     ].set_index('tractid').squeeze()
 
-    move_totals = moves_to_LA_OC_not_in_high.groupby('orig_fips').size()
+    move_totals1 = moves_to_LA_OC_not_in_high.groupby('orig_fips').size()
 
     area_results[
         "Weighted average density of destination tracts for moves that end in "
@@ -251,20 +252,141 @@ for period in periods:
                                    .unstack(fill_value=0)
                                    .mul(popdens_by_area)
                                    .sum(axis=1)
-                                   .div(move_totals)
+                                   .div(move_totals1)
                                    .reindex(se_high_loss_areas))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        area_results[
+            "Median density of destination tracts for moves that end in LA and "
+            "Orange County but are not in high-loss decile"
+        ] = (moves_to_LA_OC_not_in_high.dropna(subset=['orig_fips'])
+                                       .set_index('orig_fips')['dest_fips']
+                                       .map(popdens_by_area)
+                                       .groupby('orig_fips')
+                                       .median()
+                                       .reindex(se_high_loss_areas))
+
+    boardings_by_area = df_census[
+        ['tractid', f'boardings{census_year}']
+    ].set_index('tractid').squeeze()
 
     area_results[
-        "Median density of destination tracts for moves that end in LA and "
-        "Orange County but are not in high-loss decile"
-    ] = (moves_to_LA_OC_not_in_high.dropna(subset=['orig_fips'])
-                                   .set_index('orig_fips')['dest_fips']
-                                   .map(popdens_by_area.to_dict())
-                                   .groupby('orig_fips')
-                                   .median()
+        "Weighted average ridership of destination tracts for moves that end "
+        "in LA and Orange County but are not in high-loss decile"
+    ] = (moves_to_LA_OC_not_in_high.groupby(['orig_fips', 'dest_fips'])
+                                   .size()
+                                   .unstack(fill_value=0)
+                                   .mul(boardings_by_area)
+                                   .sum(axis=1)
+                                   .div(move_totals1)
                                    .reindex(se_high_loss_areas))
 
-    # TODO: density stuff percentages
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        area_results[
+            "Median ridership of destination tracts for moves that end in LA and "
+            "Orange County but are not in high-loss decile"
+        ] = (moves_to_LA_OC_not_in_high.dropna(subset=['orig_fips'])
+                                       .set_index('orig_fips')['dest_fips']
+                                       .map(boardings_by_area)
+                                       .groupby('orig_fips')
+                                       .median()
+                                       .reindex(se_high_loss_areas))
+
+
+    dest_popdens_end_LA_OC = moves_end_in_LA_OC[
+        'dest_fips'
+    ].map(popdens_by_area)
+
+    num_moves_16000 = agg_moves_by_area(
+        moves_end_in_LA_OC[
+            dest_popdens_end_LA_OC < 16000
+        ],
+        'orig_fips'
+    )
+
+    num_all = agg_moves_by_area(all_moves_out, 'orig_fips')
+    num_LA_OC = agg_moves_by_area(moves_end_in_LA_OC, 'orig_fips')
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to tracts below a density of 16,000 out of high loss tracts that "
+        "end anywhere"
+    ] = 100 * num_moves_16000 / num_all
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to tracts below a density of 16,000 out of high loss tracts that "
+        "stay in LA and OC"
+    ] = 100 * num_moves_16000 / num_LA_OC
+
+    num_moves_20k = agg_moves_by_area(
+        moves_end_in_LA_OC[
+            dest_popdens_end_LA_OC < 20000
+        ],
+        'orig_fips'
+    )
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to tracts below a density of 20k out of high loss tracts that "
+        "end anywhere"
+    ] = 100 * num_moves_20k / num_all
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to tracts below a density of 20k out of high loss tracts that "
+        "stay in LA and OC"
+    ] = 100 * num_moves_20k / num_LA_OC
+
+    orig_popdens_end_LA_OC = moves_end_in_LA_OC[
+        'orig_fips'
+    ].map(popdens_by_area)
+
+    num_moves_lower = agg_moves_by_area(
+        moves_end_in_LA_OC[
+            dest_popdens_end_LA_OC < orig_popdens_end_LA_OC
+        ],
+        'orig_fips'
+    )
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to a lower-density tract out of high loss tracts that end "
+        "anywhere"
+    ] = 100 * num_moves_lower / num_all
+
+    area_results[
+        "Percent of moves out of high-loss tracts that end in LA or OC and "
+        "went to a lower-density tract out of high loss tracts that stay in LA "
+        "and OC"
+    ] = 100 * num_moves_lower / num_LA_OC
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        orig_indexed_end_LA_OC = moves_end_in_LA_OC.set_index(
+            'orig_fips',
+            drop=False
+        )
+
+    orig_indexed_dest_popdens_end_LA_OC = orig_indexed_end_LA_OC[
+        'dest_fips'
+    ].map(popdens_by_area)
+    orig_indexed_orig_popdens_end_LA_OC = orig_indexed_end_LA_OC[
+        'orig_fips'
+    ].map(popdens_by_area)
+
+    area_results[
+        "The average change in population density of a move out of a high-loss "
+        "tract that end in LA or OC"
+    ] = (
+        orig_indexed_dest_popdens_end_LA_OC
+        - orig_indexed_orig_popdens_end_LA_OC
+    ).groupby('orig_fips').mean().reindex(se_high_loss_areas)
 
 
     moves_in = df_actual_moves[
@@ -277,6 +399,53 @@ for period in periods:
 
 
     # TODO: calculate more density stuff
+
+    move_totals2 = moves_in.groupby('dest_fips').size()
+
+    area_results[
+        "Weighted average density of tracts where in-moves originated"
+    ] = (moves_in.groupby(['dest_fips', 'orig_fips'])
+                 .size()
+                 .unstack(fill_value=0)
+                 .mul(popdens_by_area)
+                 .sum(axis=1)
+                 .div(move_totals2)
+                 .reindex(se_high_loss_areas))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        area_results[
+            "Median density of tracts where in-moves originated"
+        ] = (moves_in.dropna(subset=['dest_fips'])
+                     .set_index('dest_fips')['orig_fips']
+                     .map(popdens_by_area)
+                     .groupby('dest_fips')
+                     .median()
+                     .reindex(se_high_loss_areas))
+
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        dest_indexed_moves_in = moves_in.set_index(
+            'dest_fips',
+            drop=False
+        )
+
+    dest_indexed_dest_popdens_moves_in = dest_indexed_moves_in[
+        'dest_fips'
+    ].map(popdens_by_area)
+    dest_indexed_orig_popdens_moves_in = dest_indexed_moves_in[
+        'orig_fips'
+    ].map(popdens_by_area)
+
+    area_results[
+        "Average change in density that resulted from a move into a high-loss "
+        "tract"
+    ] = (
+        dest_indexed_dest_popdens_moves_in
+        - dest_indexed_orig_popdens_moves_in
+    ).groupby('dest_fips').mean().reindex(se_high_loss_areas)
 
 
     area_results[
@@ -325,7 +494,7 @@ for period in periods:
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
     ] = calculate_iqr(dist_moves_out)
-    
+
     entire_sample_results[
         "Mean distance of moves out"
     ] = dist_moves_out.mean()
@@ -342,7 +511,10 @@ for period in periods:
 
     entire_sample_results[
         "Average change in density of a move"
-    ] = "Not yet implemented" # TODO
+    ] = (
+        df_actual_moves['dest_fips'].map(popdens_by_area)
+        - df_actual_moves['orig_fips'].map(popdens_by_area)
+    ).mean()
 
 
     df_results = pd.concat(
@@ -354,7 +526,7 @@ for period in periods:
     )
 
     if verbose:
-    with pd.option_context('display.max_columns', None):
-        print(f"\nperiod {period} results:\n")
-        pprint(entire_sample_results)
+        with pd.option_context('display.max_columns', None):
+            print(f"\nperiod {period} results:\n")
+            pprint(entire_sample_results)
             print(df_results[to_print])
