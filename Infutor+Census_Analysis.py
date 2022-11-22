@@ -12,6 +12,7 @@ with open('./Infutor+Census_Analysis.yaml') as f:
     config = safe_load(f)
 
 verbose = config['verbose']
+to_print = config['analysis to print']
 lines_per_chunk = config['lines per chunk']
 
 periods = config['periods']
@@ -352,7 +353,8 @@ for period in periods:
         axis='columns'
     )
 
+    if verbose:
     with pd.option_context('display.max_columns', None):
         print(f"\nperiod {period} results:\n")
         pprint(entire_sample_results)
-        print(df_results)
+            print(df_results[to_print])
