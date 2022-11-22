@@ -466,6 +466,12 @@ for period in periods:
 
     # TODO: calculate migration rates
 
+    num_months = 12 * (infutor_end - infutor_start + 1)
+
+    # area_results[
+    #     "Moves out per month"
+    # ] = 
+
 
     entire_sample_results = {}
 
