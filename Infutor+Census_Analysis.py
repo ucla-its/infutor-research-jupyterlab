@@ -1,8 +1,8 @@
-from yaml import safe_load
 from glob import glob
 import warnings
 from pprint import pprint
 
+from yaml import safe_load
 import pandas as pd
 import numpy as np
 
@@ -184,6 +184,7 @@ for period in periods:
         "Mean distance of all moves out"
     ] = agg_moves_by_area(all_moves_out, 'orig_fips', 'mean', ['dist'], np.NaN)
 
+    # FIXME: not filtering by county
     moves_end_in_LA_OC = all_moves_out[
         all_moves_out['orig_fips'] != all_moves_out['dest_fips']
     ]
