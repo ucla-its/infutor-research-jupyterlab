@@ -466,8 +466,11 @@ for period in periods:
 
     # area_results[
     #     "Moves out per month"
-    # ] = 
+    # ] = type258_totals / num_months
+    # type258_totals / totalpop_by_area
 
+    # type369_totals / num_months
+    # type369_totals / totalpop_by_area
 
     entire_sample_results = {}
 
