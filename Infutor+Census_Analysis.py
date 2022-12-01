@@ -30,8 +30,7 @@ df_moves = pd.concat(
         for chunk_file in glob(
             f'./data/infutor+census/moves-{lines_per_chunk}/*.pkl'
         )
-    ],
-    ignore_index=True
+    ]
 )
 
 if verbose:
@@ -57,17 +56,15 @@ df_high_loss_areas = pd.read_pickle(
     './data/infutor+census/df_high_loss_areas.pkl'
 )
 
-se_high_loss_areas = df_high_loss_areas['tractid']
+se_high_loss_areas = pd.read_pickle(
+    './data/infutor+census/se_high_loss_areas.pkl'
+)
 
 
 ### Analysis ###
 
 if verbose:
     print("Starting analysis...")
-
-# FIXME: Both first records and missing data represented by NaN
-# NOTE: Assuming date_arrived=NaN are first records, since data filtered by
-#       effdate in preprocessing
 
 def years_to_effdate(beginning, end):
     return (100 * beginning + 1), (100 * end + 12)
@@ -117,9 +114,11 @@ for period in periods:
         )
     ]
 
+    # TODO: Remove
     df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
 
 
+    # TODO: Rewrite to use new indices
     type4578_10_11_12_13_moves = df_actual_moves[
         ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
     ]

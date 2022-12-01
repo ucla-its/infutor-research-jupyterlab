@@ -6,8 +6,9 @@ force re-extraction: false
 create csv: false
 
 zip+4 types: [H, S, R]
-move creation method: 0
+move creation method: 3
   # 0: missing data is not dropped
   # 1: drop individuals with missing data
   # 2: drop moves with missing data
+  # 3: drop moves that represent individuals' first destinations
 county codes: ["037", "059"]

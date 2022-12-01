@@ -59,6 +59,11 @@ if verbose:
     else:
         print("Processing all_states.csv...")
 
+# Load high-loss areas
+se_high_loss_areas = pd.read_pickle(
+    './data/infutor+census/se_high_loss_areas.pkl'
+)
+
 # Settings
 usecols_all_states = ['z4type', 'effdate']
 for i in range(2, 11):
@@ -70,14 +75,14 @@ for i in range(1, 11):
     usecols_all_states.append(f'fips{i}')
 
 dtype_all_states = {
-    'z4type': 'category',
+    'z4type': 'string',
     'effdate': 'float',
     'lat1': 'float',
     'lon1': 'float',
     'fips1': 'float',
 }
 for i in range(2, 11):
-    dtype_all_states[f'z4type{i}'] = 'category'
+    dtype_all_states[f'z4type{i}'] = 'string'
     dtype_all_states[f'effdate{i}'] = 'float'
     dtype_all_states[f'lat{i}'] = 'float'
     dtype_all_states[f'lon{i}'] = 'float'
@@ -135,17 +140,18 @@ def dont_dropna(df_areas):
     return df_moves
 
 def preshift_dropna(df_areas):
-    # dropna fips before shifting
     df_areas = df_areas.dropna(subset=['effdate', 'lat', 'lon', 'fips'])
     df_moves = dont_dropna(df_areas)
     return df_moves
 
-# TODO: Maybe rebrand as drop first origin
-
 def postshift_dropna(df_areas):
-    # dropna after shifting
     df_moves = dont_dropna(df_areas)
     df_moves = df_moves.dropna()
+    return df_moves
+
+def drop_first_origin(df_areas):
+    df_moves = dont_dropna(df_areas)
+    df_moves = df_moves.dropna(subset=['date_arrived'])
     return df_moves
 
 if move_creation_method == 0:
@@ -154,6 +160,8 @@ elif move_creation_method == 1:
     create_moves = preshift_dropna
 elif move_creation_method == 2:
     create_moves = postshift_dropna
+elif move_creation_method == 3:
+    create_moves = drop_first_origin
 
 # vectorized haversine function: https://stackoverflow.com/a/40453439
 def haversine(lat1, lon1, lat2, lon2, to_radians=True, earth_radius=6371):
@@ -173,6 +181,21 @@ def haversine(lat1, lon1, lat2, lon2, to_radians=True, earth_radius=6371):
         np.cos(lat1) * np.cos(lat2) * np.sin((lon2-lon1)/2.0)**2
 
     return earth_radius * 2 * np.arcsin(np.sqrt(a))
+
+# Categorization functions
+def in_areas(fips, areas=se_high_loss_areas):
+    return fips.isin(areas)
+
+def in_counties(fips, county_codes=['037', '059']):
+    return fips.astype('string').str[1:4].isin(county_codes)
+
+def which_region(fips):
+    return (fips.mask(in_areas, 'high-loss')
+                .mask(in_counties, 'LA/OC')
+                .where(lambda se: se.isin(['high-loss', 'LA/OC']), 'outside'))
+
+def is_to_self(moves):
+    return moves['orig_fips'] == moves['dest_fips']
 
 # Process all chunks
 for index, chunk in enumerate(it_all_states):
@@ -203,9 +226,8 @@ for index, chunk in enumerate(it_all_states):
     )
 
     # Change values so selected effdates are not removed
-    df_all_areas['z4type'] = df_all_areas['z4type'].cat.add_categories('empty')
     df_all_areas.loc[bi_all_dropped, 'z4type'] = 'empty'
-    df_all_areas.loc[bi_all_dropped, 'fips'] = ''
+    df_all_areas.loc[bi_all_dropped, 'fips'] = np.NaN
 
     # Filter by Zip+4 type
     z4types_mask = (*z4types, 'empty')
@@ -236,11 +258,25 @@ for index, chunk in enumerate(it_all_states):
             df_filtered_moves['dest_lon']
         )
 
-    # Write to file
     df_final_moves = df_filtered_moves[
         ['date_arrived', 'orig_fips', 'date_left', 'dest_fips', 'dist']
     ]
 
+    # Categorize/index moves by orig and dest
+    with pd.option_context('mode.chained_assignment', None):
+        df_final_moves['to_self'] = is_to_self(df_final_moves)
+        df_final_moves['orig_region'] = which_region(
+            df_final_moves['orig_fips']
+        )
+        df_final_moves['dest_region'] = which_region(
+            df_final_moves['dest_fips']
+        )
+
+    df_final_moves = df_final_moves.set_index(
+        ['to_self', 'orig_region', 'dest_region']
+    )
+
+    # Write to file
     if create_csv:
         df_final_moves.to_csv(
             f"./data/{project_name}/moves-{lines_per_chunk}/{index}.csv"
