@@ -69,6 +69,7 @@ if verbose:
 def years_to_effdate(beginning, end):
     return (100 * beginning + 1), (100 * end + 12)
 
+# TODO: Cache if analysis too slow
 def agg_moves_by_area(
     moves,
     by,
@@ -249,61 +250,61 @@ for period in periods:
 
     area_results[
         "Number of total moves that began in high-loss tracts"
-    ] = type1258_totals
+    ] = type1258_totals # [:, 'high-loss', :]
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in the "
         "same tract"
-    ] = type1_totals
+    ] = type1_totals # [True, 'high-loss', :]
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in a "
         "different high-loss tract"
-    ] = type2_totals
+    ] = type2_totals # [False, 'high-loss', 'high-loss']
 
     area_results[
         "Number of total moves that began in the tract and ended outside LA or "
         "Orange Counties"
-    ] = type8_totals
+    ] = type8_totals # [:, 'high-loss', 'outside']
 
     area_results[
         "Number of total moves that began in the tract and ended outside the "
         "high-loss deciles"
-    ] = type58_totals
+    ] = type58_totals # [:, 'high-loss', ['LA/OC', 'outside']]
 
 
     area_results[
         "Interquartile range of all move distances out of high-loss tracts"
-    ] = type258_dist_iqrs
+    ] = type258_dist_iqrs # [False, 'high-loss', :]
 
     area_results[
         "Interquartile range of move distances out of high-loss tracts that "
         "end in LA or the OC"
-    ] = type25_dist_iqrs
+    ] = type25_dist_iqrs # [False, 'high-loss', ['high-loss', 'LA/OC']]
 
 
     area_results[
         "Mean distance of all moves out"
-    ] = type258_dist_means
+    ] = type258_dist_means # [False, 'high-loss', :]
 
     area_results[
         "Mean distance of moves out that end in LA or the OC"
-    ] = type25_dist_means
+    ] = type25_dist_means # [False, 'high-loss', ['high-loss', 'LA/OC']]
 
 
     area_results[
         "Share of moves that stay within tract"
-    ] = type1_totals / type1258_totals
+    ] = type1_totals / type1258_totals # [True, 'high-loss', :] / [:, 'high-loss', :]
 
     area_results[
         "Share of moves that stay within high-loss decile"
-    ] = type12_totals / type1258_totals
+    ] = type12_totals / type1258_totals # [:, 'high-loss', 'high-loss'] / [:, 'high-loss', :]
 
 
     area_results[
         "Weighted average density of destination tracts for moves that end in "
         "LA and Orange County but are not in high-loss decile"
-    ] = (type5_moves.groupby(['orig_fips', 'dest_fips'])
+    ] = (type5_moves.groupby(['orig_fips', 'dest_fips']) # [:, 'high-loss', 'LA/OC']
                     .size()
                     .unstack(fill_value=0)
                     .mul(popdens_by_area)
@@ -317,7 +318,7 @@ for period in periods:
         area_results[
             "Median density of destination tracts for moves that end in LA and "
             "Orange County but are not in high-loss decile"
-        ] = (type5_moves.dropna(subset=['orig_fips'])
+        ] = (type5_moves.dropna(subset=['orig_fips']) # [:, 'high-loss', 'LA/OC']
                         .set_index('orig_fips')['dest_fips']
                         .map(popdens_by_area)
                         .groupby('orig_fips')
@@ -327,7 +328,7 @@ for period in periods:
     area_results[
         "Weighted average ridership of destination tracts for moves that end "
         "in LA and Orange County but are not in high-loss decile"
-    ] = (type5_moves.groupby(['orig_fips', 'dest_fips'])
+    ] = (type5_moves.groupby(['orig_fips', 'dest_fips']) # [:, 'high-loss', 'LA/OC']
                     .size()
                     .unstack(fill_value=0)
                     .mul(boardings_by_area)
@@ -341,7 +342,7 @@ for period in periods:
         area_results[
             "Median ridership of destination tracts for moves that end in LA "
             "and Orange County but are not in high-loss decile"
-        ] = (type5_moves.dropna(subset=['orig_fips'])
+        ] = (type5_moves.dropna(subset=['orig_fips']) # [:, 'high-loss', 'LA/OC']
                         .set_index('orig_fips')['dest_fips']
                         .map(boardings_by_area)
                         .groupby('orig_fips')
@@ -353,59 +354,59 @@ for period in periods:
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "end anywhere"
-    ] = 100 * type25_16k_totals / type258_totals
+    ] = 100 * type25_16k_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "stay in LA and OC"
-    ] = 100 * type25_16k_totals / type25_totals
+    ] = 100 * type25_16k_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
 
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 20k out of high loss tracts that "
         "end anywhere"
-    ] = 100 * type25_20k_totals / type258_totals
+    ] = 100 * type25_20k_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 20k out of high loss tracts that "
         "stay in LA and OC"
-    ] = 100 * type25_20k_totals / type25_totals
+    ] = 100 * type25_20k_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
 
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to a lower-density tract out of high loss tracts that end "
         "anywhere"
-    ] = 100 * type25_lower_totals / type258_totals
+    ] = 100 * type25_lower_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to a lower-density tract out of high loss tracts that stay in LA "
         "and OC"
-    ] = 100 * type25_lower_totals / type25_totals
+    ] = 100 * type25_lower_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
 
 
     area_results[
         "The average change in population density of a move out of a high-loss "
         "tract that end in LA or OC"
     ] = (
-        type25_dest_popdens_by_orig - type25_orig_popdens_by_orig
+        type25_dest_popdens_by_orig - type25_orig_popdens_by_orig # [False, 'high-loss', ['high-loss', 'LA/OC']]
     ).groupby('orig_fips').mean().reindex(se_high_loss_areas)
 
 
-    # FIXME -> type369_totals
-    #       -> type69_totals
-    #       -> type36_totals
+    # FIXME -> type369_totals [False, :, 'high-loss']
+    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
+    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
         "Number of total moves into the high-loss tracts"
     ] = type1369_totals
 
 
-    # FIXME -> type369_moves
-    #       -> type6_moves
+    # FIXME -> type369_moves [False, :, 'high-loss']
+    #       -> type6_moves [:, 'LA/OC', 'high-loss']
     area_results[
         "Weighted average density of tracts where in-moves originated"
     ] = (type1369_moves.groupby(['dest_fips', 'orig_fips'])
@@ -416,8 +417,8 @@ for period in periods:
                        .div(type1369_totals_by_dest)
                        .reindex(se_high_loss_areas))
 
-    # FIXME -> type369_moves
-    #       -> type6_moves
+    # FIXME -> type369_moves [False, :, 'high-loss']
+    #       -> type6_moves [:, 'LA/OC', 'high-loss']
     with warnings.catch_warnings():
         warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -434,7 +435,7 @@ for period in periods:
     # TODO: Percent of moves in that came from lower-density places
 
 
-    # FIXME -> type369
+    # FIXME -> type369 [False, :, 'high-loss']
     area_results[
         "Average change in density that resulted from a move into a high-loss "
         "tract"
@@ -443,17 +444,17 @@ for period in periods:
     ).groupby('dest_fips').mean().reindex(se_high_loss_areas)
 
 
-    # FIXME -> type369_totals
-    #       -> type69_totals
-    #       -> type36_totals
+    # FIXME -> type369_totals [False, :, 'high-loss']
+    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
+    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
         "Interquartile range of move distance for moves that end in high-loss "
         "tracts"
     ] = type1369_dist_iqrs
 
-    # FIXME -> type369_totals
-    #       -> type69_totals
-    #       -> type36_totals
+    # FIXME -> type369_totals [False, :, 'high-loss']
+    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
+    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
         "Mean move distance for the above"
     ] = type1369_dist_means
@@ -465,11 +466,11 @@ for period in periods:
 
     # area_results[
     #     "Moves out per month"
-    # ] = type258_totals / num_months
-    # type258_totals / totalpop_by_area
+    # ] = type258_totals / num_months [False, 'high-loss', :]
+    # type258_totals / totalpop_by_area [False, 'high-loss', :]
 
-    # type369_totals / num_months
-    # type369_totals / totalpop_by_area
+    # type369_totals / num_months [False, :, 'high-loss']
+    # type369_totals / totalpop_by_area [False, :, 'high-loss']
 
     entire_sample_results = {}
 
@@ -485,25 +486,25 @@ for period in periods:
     # FIXME -> type1_total
     entire_sample_results[
         "Number of total moves that began and ended in the same tract"
-    ] = type147_total
+    ] = type147_total # [True, :, :]
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
-    ] = type78_10_13_total
+    ] = type78_10_13_total # [:, :, 'outside']
 
 
-    # FIXME -> type58_dist_iqr
+    # FIXME -> type58_dist_iqr [:, 'high-loss', ['LA/OC', 'outside']]
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
     ] = type4578_10_11_12_13_dist_iqr
 
-    # FIXME -> type58_dist_iqr
+    # FIXME -> type58_dist_iqr [:, 'high-loss', ['LA/OC', 'outside']]
     entire_sample_results[
         "Mean distance of moves out"
     ] = type4578_10_11_12_13_dist_mean
 
 
-    # FIXME -> type1_total / type1258_total
+    # FIXME -> type1_total [True, 'high-loss', :] / type1258_total [:, 'high-loss', :]
     entire_sample_results[
         "Share of moves that stay within tract"
     ] = type147_total / moves_total
