@@ -24,7 +24,7 @@ periods = config['periods']
 if verbose:
     print("Loading infutor data...")
 
-df_moves = pd.concat(
+df_all_moves = pd.concat(
     [
         pd.read_pickle(chunk_file)
         for chunk_file in glob(
@@ -69,19 +69,17 @@ if verbose:
 def years_to_effdate(beginning, end):
     return (100 * beginning + 1), (100 * end + 12)
 
-# TODO: Cache if analysis too slow
+def census_col_by_area(name, df=df_census):
+    se = df[['tractid', name]].set_index('tractid').squeeze()
+    return se
+
 def agg_moves_by_area(
-    moves,
-    by,
-    func='size',
-    subset=[],
-    fill_value=0,
-    areas=se_high_loss_areas
+    moves, by, func='size', subset=[], fill_value=0, areas=se_high_loss_areas
 ):
-    se_result = (moves.groupby(by)[subset]
-                      .agg(func)
-                      .reindex(areas, fill_value=fill_value)
-                      .squeeze())
+    se_result = moves.groupby(by)[subset] \
+                     .agg(func) \
+                     .reindex(areas, fill_value=fill_value) \
+                     .squeeze()
     return se_result
 
 def calculate_iqr(se):
@@ -89,6 +87,59 @@ def calculate_iqr(se):
     iqr = q3 - q1
     return iqr
 
+def weighted_average_by_area(
+    moves, by, other, census_col, areas=se_high_loss_areas
+):
+    move_totals_by_area = moves.groupby(by).size()
+
+    se_result = moves.groupby([by, other]) \
+                     .size() \
+                     .unstack(fill_value=0) \
+                     .mul(census_col) \
+                     .sum(axis=1) \
+                     .div(move_totals_by_area) \
+                     .reindex(areas)
+    return se_result
+
+def median_by_area(moves, by, other, census_col, areas=se_high_loss_areas):
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        se_result = moves.dropna(subset=[by]) \
+                         .set_index(by)[other] \
+                         .map(census_col) \
+                         .groupby(by) \
+                         .median() \
+                         .reindex(areas)
+
+    return se_result
+
+def get_moves_to_below_threshold(moves, census_col, threshold):
+    moves_dest_data = moves['dest_fips'].map(census_col)
+
+    if type(threshold) is str:
+        moves_orig_data = moves['orig_fips'].map(census_col)
+    else:
+        moves_orig_data = threshold
+
+    filtered_moves = moves[moves_dest_data < moves_orig_data]
+    return filtered_moves
+
+def average_change_by_area(moves, by, census_col, areas=se_high_loss_areas):
+    with warnings.catch_warnings():
+        warnings.simplefilter(action='ignore', category=FutureWarning)
+
+        moves_by_area = moves.set_index(by, drop=False)
+
+    moves_dest_data_by_area = moves_by_area['dest_fips'].map(census_col)
+    moves_orig_data_by_area = moves_by_area['orig_fips'].map(census_col)
+
+    result = (moves_dest_data_by_area - moves_orig_data_by_area).groupby(by) \
+                                                                .mean() \
+                                                                .reindex(areas)
+    return result
+
+# TODO: Remove
 def in_counties(fips, county_codes=['037', '059']):
     return fips.astype('string').str[1:4].isin(county_codes)
 
@@ -97,7 +148,9 @@ for period in periods:
     census_year = period['census year']
 
 
-    totalpop_by_area = df_high_loss_areas[['tractid', f'totalpop{census_year}']]
+    totalpop_by_area = df_high_loss_areas[
+        ['tractid', f'totalpop{census_year}']
+    ].set_index('tractid').squeeze()
 
     totalpop = df_census[f'totalpop{census_year}'].sum()
 
@@ -109,22 +162,22 @@ for period in periods:
     ].set_index('tractid').squeeze()
 
 
-    df_period_moves = df_moves[
-        df_moves['date_left'].between(
+    df_moves = df_all_moves[
+        df_all_moves['date_left'].between(
             *years_to_effdate(infutor_start, infutor_end)
         )
     ]
 
     # TODO: Remove
-    df_actual_moves = df_period_moves.dropna(subset=['date_arrived'])
+    df_actual_moves = df_moves.dropna(subset=['date_arrived'])
 
 
     # TODO: Rewrite to use new indices
     type4578_10_11_12_13_moves = df_actual_moves[
         ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
     ]
-    type1258_moves = df_period_moves[
-        df_period_moves['orig_fips'].isin(se_high_loss_areas)
+    type1258_moves = df_moves[
+        df_moves['orig_fips'].isin(se_high_loss_areas)
     ]
     type1369_moves = df_actual_moves[
         df_actual_moves['dest_fips'].isin(se_high_loss_areas)
@@ -217,7 +270,7 @@ for period in periods:
     with warnings.catch_warnings():
         warnings.simplefilter(action='ignore', category=FutureWarning)
 
-        type25_moves_by_orig = type25_moves.set_index('orig_fips',drop=False)
+        type25_moves_by_orig = type25_moves.set_index('orig_fips', drop=False)
         type1369_moves_by_dest = type1369_moves.set_index(
             'dest_fips', drop=False
         )
@@ -245,219 +298,372 @@ for period in periods:
 
     area_results[
         "Total population at beginning of the period"
-    ] = totalpop_by_area
+    ] = census_col_by_area(f'totalpop{census_year}', df_high_loss_areas)
 
 
     area_results[
         "Number of total moves that began in high-loss tracts"
-    ] = type1258_totals # [:, 'high-loss', :]
+    ] = agg_moves_by_area(df_moves.loc[:, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in the "
         "same tract"
-    ] = type1_totals # [True, 'high-loss', :]
+    ] = agg_moves_by_area(df_moves.loc[True, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Number of total moves that began in high-loss tracts and ended in a "
         "different high-loss tract"
-    ] = type2_totals # [False, 'high-loss', 'high-loss']
+    ] = agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', 'high-loss'], 'orig_fips'
+    )
 
     area_results[
         "Number of total moves that began in the tract and ended outside LA or "
         "Orange Counties"
-    ] = type8_totals # [:, 'high-loss', 'outside']
+    ] = agg_moves_by_area(df_moves.loc[:, 'high-loss', 'outside'], 'orig_fips')
 
     area_results[
         "Number of total moves that began in the tract and ended outside the "
         "high-loss deciles"
-    ] = type58_totals # [:, 'high-loss', ['LA/OC', 'outside']]
+    ] = agg_moves_by_area(
+        df_moves.loc[:, 'high-loss', ['LA/OC', 'outside']], 'orig_fips'
+    )
 
 
     area_results[
         "Interquartile range of all move distances out of high-loss tracts"
-    ] = type258_dist_iqrs # [False, 'high-loss', :]
+    ] = agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', :],
+        'orig_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
 
     area_results[
         "Interquartile range of move distances out of high-loss tracts that "
         "end in LA or the OC"
-    ] = type25_dist_iqrs # [False, 'high-loss', ['high-loss', 'LA/OC']]
+    ] = agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+        'orig_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
 
 
     area_results[
         "Mean distance of all moves out"
-    ] = type258_dist_means # [False, 'high-loss', :]
+    ] = agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', :],
+        'orig_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
 
     area_results[
         "Mean distance of moves out that end in LA or the OC"
-    ] = type25_dist_means # [False, 'high-loss', ['high-loss', 'LA/OC']]
+    ] = agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+        'orig_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
 
 
     area_results[
         "Share of moves that stay within tract"
-    ] = type1_totals / type1258_totals # [True, 'high-loss', :] / [:, 'high-loss', :]
+    ] = agg_moves_by_area(df_moves.loc[True, 'high-loss', :], 'orig_fips') \
+        / agg_moves_by_area(df_moves.loc[:, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Share of moves that stay within high-loss decile"
-    ] = type12_totals / type1258_totals # [:, 'high-loss', 'high-loss'] / [:, 'high-loss', :]
+    ] = agg_moves_by_area(
+        df_moves.loc[:, 'high-loss', 'high-loss'], 'orig_fips'
+    ) / agg_moves_by_area(df_moves.loc[:, 'high-loss', :], 'orig_fips')
 
 
     area_results[
         "Weighted average density of destination tracts for moves that end in "
         "LA and Orange County but are not in high-loss decile"
-    ] = (type5_moves.groupby(['orig_fips', 'dest_fips']) # [:, 'high-loss', 'LA/OC']
-                    .size()
-                    .unstack(fill_value=0)
-                    .mul(popdens_by_area)
-                    .sum(axis=1)
-                    .div(type5_totals_by_orig)
-                    .reindex(se_high_loss_areas))
+    ] = weighted_average_by_area(
+        df_moves.loc[:, 'high-loss', 'LA/OC'],
+        'orig_fips',
+        'dest_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
 
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore', category=FutureWarning)
-
-        area_results[
-            "Median density of destination tracts for moves that end in LA and "
-            "Orange County but are not in high-loss decile"
-        ] = (type5_moves.dropna(subset=['orig_fips']) # [:, 'high-loss', 'LA/OC']
-                        .set_index('orig_fips')['dest_fips']
-                        .map(popdens_by_area)
-                        .groupby('orig_fips')
-                        .median()
-                        .reindex(se_high_loss_areas))
+    area_results[
+        "Median density of destination tracts for moves that end in LA and "
+        "Orange County but are not in high-loss decile"
+    ] = median_by_area(
+        df_moves.loc[:, 'high-loss', 'LA/OC'],
+        'orig_fips',
+        'dest_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
 
     area_results[
         "Weighted average ridership of destination tracts for moves that end "
         "in LA and Orange County but are not in high-loss decile"
-    ] = (type5_moves.groupby(['orig_fips', 'dest_fips']) # [:, 'high-loss', 'LA/OC']
-                    .size()
-                    .unstack(fill_value=0)
-                    .mul(boardings_by_area)
-                    .sum(axis=1)
-                    .div(type5_totals_by_orig)
-                    .reindex(se_high_loss_areas))
+    ] = weighted_average_by_area(
+        df_moves.loc[:, 'high-loss', 'LA/OC'],
+        'orig_fips',
+        'dest_fips',
+        census_col_by_area(f'boardings{census_year}')
+    )
 
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore', category=FutureWarning)
-
-        area_results[
-            "Median ridership of destination tracts for moves that end in LA "
-            "and Orange County but are not in high-loss decile"
-        ] = (type5_moves.dropna(subset=['orig_fips']) # [:, 'high-loss', 'LA/OC']
-                        .set_index('orig_fips')['dest_fips']
-                        .map(boardings_by_area)
-                        .groupby('orig_fips')
-                        .median()
-                        .reindex(se_high_loss_areas))
+    area_results[
+        "Median ridership of destination tracts for moves that end in LA "
+        "and Orange County but are not in high-loss decile"
+    ] = median_by_area(
+        df_moves.loc[:, 'high-loss', 'LA/OC'],
+        'orig_fips',
+        'dest_fips',
+        census_col_by_area(f'boardings{census_year}')
+    )
 
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "end anywhere"
-    ] = 100 * type25_16k_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            16_000
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "stay in LA and OC"
-    ] = 100 * type25_16k_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            16_000
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']], 'orig_fips'
+    )
 
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 20k out of high loss tracts that "
         "end anywhere"
-    ] = 100 * type25_20k_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            20_000
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to tracts below a density of 20k out of high loss tracts that "
         "stay in LA and OC"
-    ] = 100 * type25_20k_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            20_000
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']], 'orig_fips'
+    )
 
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to a lower-density tract out of high loss tracts that end "
         "anywhere"
-    ] = 100 * type25_lower_totals / type258_totals # [False, 'high-loss', ['high-loss', 'LA/OC']] / [False, 'high-loss', :]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            'orig_fips'
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
 
     area_results[
         "Percent of moves out of high-loss tracts that end in LA or OC and "
         "went to a lower-density tract out of high loss tracts that stay in LA "
         "and OC"
-    ] = 100 * type25_lower_totals / type25_totals # [False, 'high-loss', ['high-loss', 'LA/OC']]
+    ] = 100 * agg_moves_by_area(
+        get_moves_to_below_threshold(
+            df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            census_col_by_area(f'popdens{census_year}'),
+            'orig_fips'
+        ),
+        'orig_fips'
+    ) / agg_moves_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']], 'orig_fips'
+    )
 
 
     area_results[
         "The average change in population density of a move out of a high-loss "
         "tract that end in LA or OC"
-    ] = (
-        type25_dest_popdens_by_orig - type25_orig_popdens_by_orig # [False, 'high-loss', ['high-loss', 'LA/OC']]
-    ).groupby('orig_fips').mean().reindex(se_high_loss_areas)
+    ] = average_change_by_area(
+        df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+        'orig_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
 
 
-    # FIXME -> type369_totals [False, :, 'high-loss']
-    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
-    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
         "Number of total moves into the high-loss tracts"
-    ] = type1369_totals
+    ] = agg_moves_by_area(df_moves.loc[False, :, 'high-loss'], 'dest_fips')
 
-
-    # FIXME -> type369_moves [False, :, 'high-loss']
-    #       -> type6_moves [:, 'LA/OC', 'high-loss']
     area_results[
-        "Weighted average density of tracts where in-moves originated"
-    ] = (type1369_moves.groupby(['dest_fips', 'orig_fips'])
-                       .size()
-                       .unstack(fill_value=0)
-                       .mul(popdens_by_area)
-                       .sum(axis=1)
-                       .div(type1369_totals_by_dest)
-                       .reindex(se_high_loss_areas))
+        "Number of total moves into the high-loss tracts for all in-moves that "
+        "aren't from another high-loss tract"
+    ] = agg_moves_by_area(
+        df_moves.loc[:, ['LA/OC', 'outside'], 'high-loss'], 'dest_fips'
+    )
 
-    # FIXME -> type369_moves [False, :, 'high-loss']
-    #       -> type6_moves [:, 'LA/OC', 'high-loss']
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore', category=FutureWarning)
+    area_results[
+        "Number of total moves into the high-loss tracts for all in-moves that "
+        "don't start outside LA or Orange Counties"
+    ] = agg_moves_by_area(
+        df_moves.loc[False, ['high-loss', 'LA/OC'], 'high-loss'], 'dest_fips'
+    )
 
-        area_results[
-            "Median density of tracts where in-moves originated"
-        ] = (type1369_moves.dropna(subset=['dest_fips'])
-                           .set_index('dest_fips')['orig_fips']
-                           .map(popdens_by_area)
-                           .groupby('dest_fips')
-                           .median()
-                           .reindex(se_high_loss_areas))
+
+    area_results[
+        "Weighted average density of tracts where in-moves originated for all "
+        "moves that aren't within the exact same tract"
+    ] = weighted_average_by_area(
+        df_moves.loc[False, :, 'high-loss'],
+        'dest_fips',
+        'orig_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
+
+    area_results[
+        "Weighted average density of tracts where in-moves originated for all "
+        "moves that originate outside the high-loss tracts but that don't "
+        "originate outside LA or Orange County"
+    ] = weighted_average_by_area(
+        df_moves.loc[:, 'LA/OC', 'high-loss'],
+        'dest_fips',
+        'orig_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
+
+    area_results[
+        "Median density of tracts where in-moves originated for all moves that "
+        "aren't within the exact same tract"
+    ] = median_by_area(
+        df_moves.loc[False, :, 'high-loss'],
+        'dest_fips',
+        'orig_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
+
+    area_results[
+        "Median density of tracts where in-moves originated for all moves that "
+        "originate outside the high-loss tracts but that don't originate "
+        "outside LA or Orange County"
+    ] = median_by_area(
+        df_moves.loc[:, 'LA/OC', 'high-loss'],
+        'dest_fips',
+        'orig_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
 
 
     # TODO: Percent of moves in that came from lower-density places
 
 
-    # FIXME -> type369 [False, :, 'high-loss']
     area_results[
         "Average change in density that resulted from a move into a high-loss "
         "tract"
-    ] = (
-        type1369_dest_popdens_by_dest - type1369_orig_popdens_by_dest
-    ).groupby('dest_fips').mean().reindex(se_high_loss_areas)
+    ] = average_change_by_area(
+        df_moves.loc[False, :, 'high-loss'],
+        'dest_fips',
+        census_col_by_area(f'popdens{census_year}')
+    )
 
 
-    # FIXME -> type369_totals [False, :, 'high-loss']
-    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
-    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
         "Interquartile range of move distance for moves that end in high-loss "
-        "tracts"
-    ] = type1369_dist_iqrs
+        "tracts for all moves not originating in same tract"
+    ] = agg_moves_by_area(
+        df_moves.loc[False, :, 'high-loss'],
+        'dest_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
 
-    # FIXME -> type369_totals [False, :, 'high-loss']
-    #       -> type69_totals [:, ['LA/OC', 'outside'], 'high-loss']
-    #       -> type36_totals [False, ['high-loss', 'LA/OC'], 'high-loss']
     area_results[
-        "Mean move distance for the above"
-    ] = type1369_dist_means
+        "Interquartile range of move distance for moves that end in high-loss "
+        "tracts for all moves except those that start in another high-loss "
+        "tract"
+    ] = agg_moves_by_area(
+        df_moves.loc[:, ['LA/OC', 'outside'], 'high-loss'],
+        'dest_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
+
+    area_results[
+        "Interquartile range of move distance for moves that end in high-loss "
+        "tracts for all moves that don't start outside LA or Orange County"
+    ] = agg_moves_by_area(
+        df_moves.loc[False, ['high-loss', 'LA/OC'], 'high-loss'],
+        'dest_fips',
+        calculate_iqr,
+        ['dist'],
+        np.NaN
+    )
+
+    area_results[
+        "Mean move distance for moves that end in high-loss tracts for all "
+        "moves not originating in same tract"
+    ] = agg_moves_by_area(
+        df_moves.loc[False, :, 'high-loss'],
+        'dest_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
+
+    area_results[
+        "Mean move distance for moves that end in high-loss tracts for all "
+        "moves except those that start in another high-loss tract"
+    ] = agg_moves_by_area(
+        df_moves.loc[:, ['LA/OC', 'outside'], 'high-loss'],
+        'dest_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
+
+    area_results[
+        "Mean move distance for moves that end in high-loss tracts for all "
+        "moves that don't start outside LA or Orange County"
+    ] = agg_moves_by_area(
+        df_moves.loc[False, ['high-loss', 'LA/OC'], 'high-loss'],
+        'dest_fips',
+        'mean',
+        ['dist'],
+        np.NaN
+    )
 
 
     # TODO: calculate migration rates
@@ -476,43 +682,44 @@ for period in periods:
 
     entire_sample_results[
         "Total population at beginning of the period"
-    ] = totalpop
+    ] = df_census[f'totalpop{census_year}'].sum()
 
 
     entire_sample_results[
         "Number of total moves"
-    ] = moves_total
+    ] = df_moves.shape[0]
 
     # FIXME -> type1_total
     entire_sample_results[
         "Number of total moves that began and ended in the same tract"
-    ] = type147_total # [True, :, :]
+    ] = df_moves.loc[True, :, :].shape[0]
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
-    ] = type78_10_13_total # [:, :, 'outside']
+    ] = df_moves.loc[:, :, 'outside'].shape[0]
 
 
-    # FIXME -> type58_dist_iqr [:, 'high-loss', ['LA/OC', 'outside']]
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = type4578_10_11_12_13_dist_iqr
+    ] = calculate_iqr(df_moves.loc[:, 'high-loss', ['LA/OC', 'outside']]['dist'])
 
-    # FIXME -> type58_dist_iqr [:, 'high-loss', ['LA/OC', 'outside']]
     entire_sample_results[
         "Mean distance of moves out"
-    ] = type4578_10_11_12_13_dist_mean
+    ] = df_moves.loc[:, 'high-loss', ['LA/OC', 'outside']]['dist'].mean()
 
 
-    # FIXME -> type1_total [True, 'high-loss', :] / type1258_total [:, 'high-loss', :]
     entire_sample_results[
         "Share of moves that stay within tract"
-    ] = type147_total / moves_total
+    ] = df_moves.loc[True, 'high-loss', :].shape[0] \
+        / df_moves.loc[:, 'high-loss', :].shape[0]
 
 
     entire_sample_results[
         "Average change in density of a move"
-    ] = (dest_popdens - orig_popdens).mean()
+    ] = (
+        df_moves['dest_fips'].map(census_col_by_area(f'popdens{census_year}')) \
+        - df_moves['orig_fips'].map(census_col_by_area(f'popdens{census_year}'))
+    ).mean()
 
 
     df_results = pd.concat(
