@@ -681,17 +681,16 @@ for period in periods:
     )
 
 
-    # TODO: calculate migration rates
+    area_results[
+        "An overall rate of outmigration from high-loss tracts"
+    ] = agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips') \
+        / census_col_by_area(f'totalpop{census_year}', df_high_loss_areas)
+    
+    area_results[
+        "An overall rate of in-migration to high-loss tracts"
+    ] = agg_moves_by_area(df_moves.loc[False, :, 'high-loss'], 'dest_fips') \
+        / census_col_by_area(f'totalpop{census_year}', df_high_loss_areas)
 
-    num_months = 12 * (infutor_end - infutor_start + 1)
-
-    # area_results[
-    #     "Moves out per month"
-    # ] = type258_totals / num_months [False, 'high-loss', :]
-    # type258_totals / totalpop_by_area [False, 'high-loss', :]
-
-    # type369_totals / num_months [False, :, 'high-loss']
-    # type369_totals / totalpop_by_area [False, :, 'high-loss']
 
     entire_sample_results = {}
 
