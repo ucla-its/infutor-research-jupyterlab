@@ -22,6 +22,9 @@ df_high_loss_areas = (
 
 # Save pickle to use later
 df_high_loss_areas.to_pickle('./data/infutor+census/df_high_loss_areas.pkl')
+df_high_loss_areas['tractid'].to_pickle(
+    './data/infutor+census/se_high_loss_areas.pkl'
+)
 
 # Save csv for manual inspection
 df_high_loss_areas.to_csv('./data/infutor+census/high-loss_areas.csv')

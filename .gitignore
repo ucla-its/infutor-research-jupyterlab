@@ -4,6 +4,7 @@
 *.pickle
 *_secret
 *status*.txt
+data/
 
 
 etc/
