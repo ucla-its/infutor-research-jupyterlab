@@ -136,27 +136,9 @@ def average_change_by_area(moves, by, census_col, areas=se_high_loss_areas):
                                                                 .reindex(areas)
     return result
 
-# TODO: Remove
-def in_counties(fips, county_codes=['037', '059']):
-    return fips.astype('string').str[1:4].isin(county_codes)
-
 for period in periods:
     infutor_start, infutor_end = period['infutor interval']
     census_year = period['census year']
-
-
-    totalpop_by_area = df_high_loss_areas[
-        ['tractid', f'totalpop{census_year}']
-    ].set_index('tractid').squeeze()
-
-    totalpop = df_census[f'totalpop{census_year}'].sum()
-
-    popdens_by_area = df_census[
-        ['tractid', f'popdens{census_year}']
-    ].set_index('tractid').squeeze()
-    boardings_by_area = df_census[
-        ['tractid', f'boardings{census_year}']
-    ].set_index('tractid').squeeze()
 
 
     df_moves = df_all_moves[
@@ -164,131 +146,6 @@ for period in periods:
             *years_to_effdate(infutor_start, infutor_end)
         )
     ]
-
-    # TODO: Remove
-    df_actual_moves = df_moves.dropna(subset=['date_arrived'])
-
-
-    # TODO: Rewrite to use new indices
-    type4578_10_11_12_13_moves = df_actual_moves[
-        ~df_actual_moves['dest_fips'].isin(se_high_loss_areas)
-    ]
-    type1258_moves = df_moves[
-        df_moves['orig_fips'].isin(se_high_loss_areas)
-    ]
-    type1369_moves = df_actual_moves[
-        df_actual_moves['dest_fips'].isin(se_high_loss_areas)
-    ]
-
-    type258_moves = type1258_moves[
-        type1258_moves['orig_fips'] != type1258_moves['dest_fips']
-    ]
-
-    type12_moves = type1258_moves[
-        type1258_moves['dest_fips'].isin(se_high_loss_areas)
-    ]
-    type25_moves = type258_moves[in_counties(type258_moves['dest_fips'])]
-    type58_moves = type1258_moves[
-        ~type1258_moves['dest_fips'].isin(se_high_loss_areas)
-    ]
-
-    type1_moves = type1258_moves[
-        type1258_moves['orig_fips'] == type1258_moves['dest_fips']
-    ]
-    type2_moves = type1258_moves[
-        type1258_moves['dest_fips'].isin(se_high_loss_areas)
-        & (type1258_moves['orig_fips'] != type1258_moves['dest_fips'])
-    ]
-    type5_moves = type1258_moves[
-        in_counties(type1258_moves['dest_fips'])
-        & ~type1258_moves['dest_fips'].isin(se_high_loss_areas)
-    ]
-    type8_moves = type1258_moves[~in_counties(type1258_moves['dest_fips'])]
-
-
-    type25_orig_popdens = type25_moves['orig_fips'].map(popdens_by_area)
-    type25_dest_popdens = type25_moves['dest_fips'].map(popdens_by_area)
-
-    type25_16k_moves = type25_moves[type25_dest_popdens < 16000]
-    type25_20k_moves = type25_moves[type25_dest_popdens < 20000]
-    type25_lower_moves = type25_moves[
-        type25_dest_popdens < type25_orig_popdens
-    ]
-
-
-    type1_totals = agg_moves_by_area(type1_moves, 'orig_fips')
-    type2_totals = agg_moves_by_area(type2_moves, 'orig_fips')
-    type8_totals = agg_moves_by_area(type8_moves,'orig_fips')
-    type12_totals = agg_moves_by_area(type12_moves,'orig_fips')
-    type25_totals = agg_moves_by_area(type25_moves, 'orig_fips')
-    type25_16k_totals = agg_moves_by_area(type25_16k_moves, 'orig_fips')
-    type25_20k_totals = agg_moves_by_area(type25_20k_moves,'orig_fips')
-    type25_lower_totals = agg_moves_by_area(type25_lower_moves, 'orig_fips')
-    type58_totals = agg_moves_by_area(type58_moves, 'orig_fips')
-    type258_totals = agg_moves_by_area(type258_moves, 'orig_fips')
-    type1258_totals = agg_moves_by_area(type1258_moves, 'orig_fips')
-    type1369_totals = agg_moves_by_area(type1369_moves, 'dest_fips')
-
-    type78_10_13_total = (~in_counties(df_actual_moves['dest_fips'])).sum()
-    type147_total = (
-        df_actual_moves['orig_fips'] == df_actual_moves['dest_fips']
-    ).sum()
-    moves_total = df_actual_moves.shape[0]
-
-    type5_totals_by_orig = type5_moves.groupby('orig_fips').size()
-    type1369_totals_by_dest = type1369_moves.groupby('dest_fips').size()
-
-    type25_dist_iqrs = agg_moves_by_area(
-        type25_moves, 'orig_fips', calculate_iqr, ['dist'], np.NaN
-    )
-    type258_dist_iqrs = agg_moves_by_area(
-        type258_moves, 'orig_fips', calculate_iqr, ['dist'], np.NaN
-    )
-    type1369_dist_iqrs = agg_moves_by_area(
-        type1369_moves, 'dest_fips', calculate_iqr, ['dist'], np.NaN
-    )
-
-    type4578_10_11_12_13_dist_iqr = calculate_iqr(
-        type4578_10_11_12_13_moves['dist']
-    )
-
-    type25_dist_means = agg_moves_by_area(
-        type25_moves, 'orig_fips', 'mean', ['dist'], np.NaN
-    )
-    type258_dist_means = agg_moves_by_area(
-        type258_moves, 'orig_fips', 'mean', ['dist'], np.NaN
-    )
-    type1369_dist_means = agg_moves_by_area(
-        type1369_moves, 'dest_fips', 'mean', ['dist'], np.NaN
-    )
-
-    type4578_10_11_12_13_dist_mean = type4578_10_11_12_13_moves['dist'].mean()
-
-    with warnings.catch_warnings():
-        warnings.simplefilter(action='ignore', category=FutureWarning)
-
-        type25_moves_by_orig = type25_moves.set_index('orig_fips', drop=False)
-        type1369_moves_by_dest = type1369_moves.set_index(
-            'dest_fips', drop=False
-        )
-
-    type25_orig_popdens_by_orig = type25_moves_by_orig[
-        'orig_fips'
-    ].map(popdens_by_area)
-    type1369_orig_popdens_by_dest = type1369_moves_by_dest[
-        'orig_fips'
-    ].map(popdens_by_area)
-
-    orig_popdens = df_actual_moves['orig_fips'].map(popdens_by_area)
-
-    type25_dest_popdens_by_orig = type25_moves_by_orig[
-        'dest_fips'
-    ].map(popdens_by_area)
-    type1369_dest_popdens_by_dest = type1369_moves_by_dest[
-        'dest_fips'
-    ].map(popdens_by_area)
-
-    dest_popdens = df_actual_moves['dest_fips'].map(popdens_by_area)
 
 
     area_results = {}
