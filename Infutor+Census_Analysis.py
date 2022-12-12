@@ -703,10 +703,9 @@ for period in periods:
         "Number of total moves"
     ] = df_moves.shape[0]
 
-    # FIXME -> type1_total
     entire_sample_results[
         "Number of total moves that began and ended in the same tract"
-    ] = df_moves.loc[True, :, :].shape[0]
+    ] = df_moves.loc[True, 'high-loss', 'high-loss'].shape[0]
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
