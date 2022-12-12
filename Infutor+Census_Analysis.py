@@ -714,7 +714,9 @@ for period in periods:
 
     entire_sample_results[
         "Interquartile range of move distances out of high-loss tracts"
-    ] = calculate_iqr(df_moves.loc[:, 'high-loss', ['LA/OC', 'outside']]['dist'])
+    ] = calculate_iqr(
+        df_moves.loc[:, 'high-loss', ['LA/OC', 'outside']]['dist']
+    )
 
     entire_sample_results[
         "Mean distance of moves out"
