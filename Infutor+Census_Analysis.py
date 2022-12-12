@@ -31,7 +31,7 @@ df_all_moves = pd.concat(
             f'./data/infutor+census/moves-{lines_per_chunk}/*.pkl'
         )
     ]
-)
+).sort_index()
 
 if verbose:
     print("Loading census data...")
