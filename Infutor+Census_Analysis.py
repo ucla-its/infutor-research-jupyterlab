@@ -114,15 +114,12 @@ def median_by_area(moves, by, other, census_col, areas=se_high_loss_areas):
 
     return se_result
 
-def get_moves_to_below_threshold(moves, census_col, threshold):
-    moves_dest_data = moves['dest_fips'].map(census_col)
-
-    if type(threshold) is str:
-        moves_orig_data = moves['orig_fips'].map(census_col)
-    else:
-        moves_orig_data = threshold
-
-    filtered_moves = moves[moves_dest_data < moves_orig_data]
+def filter_moves_using_fips(
+    moves, test, orig_mapping=lambda x: x, dest_mapping=lambda x: x
+):
+    moves_orig_data = moves['orig_fips'].map(orig_mapping)
+    moves_dest_data = moves['dest_fips'].map(dest_mapping)
+    filtered_moves = moves[test(moves_orig_data, moves_dest_data)]
     return filtered_moves
 
 def average_change_by_area(moves, by, census_col, areas=se_high_loss_areas):
@@ -431,10 +428,11 @@ for period in periods:
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "end anywhere"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
-            census_col_by_area(f'popdens{census_year}'),
-            16_000
+            lambda orig, dest: dest < orig,
+            lambda _: 16_000,
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
@@ -444,10 +442,11 @@ for period in periods:
         "went to tracts below a density of 16,000 out of high loss tracts that "
         "stay in LA and OC"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
-            census_col_by_area(f'popdens{census_year}'),
-            16_000
+            lambda orig, dest: dest < orig,
+            lambda _: 16_000,
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(
@@ -460,10 +459,11 @@ for period in periods:
         "went to tracts below a density of 20k out of high loss tracts that "
         "end anywhere"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
-            census_col_by_area(f'popdens{census_year}'),
-            20_000
+            lambda orig, dest: dest < orig,
+            lambda _: 20_000,
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
@@ -473,10 +473,11 @@ for period in periods:
         "went to tracts below a density of 20k out of high loss tracts that "
         "stay in LA and OC"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
-            census_col_by_area(f'popdens{census_year}'),
-            20_000
+            lambda orig, dest: dest < orig,
+            lambda _: 20_000,
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(
@@ -489,10 +490,11 @@ for period in periods:
         "went to a lower-density tract out of high loss tracts that end "
         "anywhere"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            lambda orig, dest: dest < orig,
             census_col_by_area(f'popdens{census_year}'),
-            'orig_fips'
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(df_moves.loc[False, 'high-loss', :], 'orig_fips')
@@ -502,10 +504,11 @@ for period in periods:
         "went to a lower-density tract out of high loss tracts that stay in LA "
         "and OC"
     ] = 100 * agg_moves_by_area(
-        get_moves_to_below_threshold(
+        filter_moves_using_fips(
             df_moves.loc[False, 'high-loss', ['high-loss', 'LA/OC']],
+            lambda orig, dest: dest < orig,
             census_col_by_area(f'popdens{census_year}'),
-            'orig_fips'
+            census_col_by_area(f'popdens{census_year}')
         ),
         'orig_fips'
     ) / agg_moves_by_area(
@@ -585,7 +588,19 @@ for period in periods:
     )
 
 
-    # TODO: Percent of moves in that came from lower-density places
+    area_results[
+        "Percent of moves in that came from lower-density places"
+    ] = 100 * agg_moves_by_area(
+        filter_moves_using_fips(
+            df_moves.loc[False, :, 'high-loss'],
+            lambda orig, dest: orig < dest,
+            census_col_by_area(f'popdens{census_year}'),
+            census_col_by_area(f'popdens{census_year}')
+        ),
+        'dest_fips'
+    ) / agg_moves_by_area(
+        df_moves.loc[False, :, 'high-loss'], 'dest_fips'
+    )
 
 
     area_results[
