@@ -15,6 +15,7 @@ with open('./Infutor+Census_Analysis.yaml') as f:
 verbose = config['verbose']
 to_print = config['analysis to print']
 lines_per_chunk = config['lines per chunk']
+export = config['write to file']
 
 periods = config['periods']
 
@@ -601,6 +602,23 @@ for period in periods:
         ],
         axis='columns'
     )
+
+    if export:
+        prompt_width = max(map(len, entire_sample_results.keys())) + 2
+
+        with open(
+            f'./data/infutor+census/For_The_Entire_LA-OC_Sample_{infutor_start}'
+            f'-{infutor_end}.txt',
+            'w'
+        ) as f:
+            for k, v in entire_sample_results.items():
+                prompt = f'{k}: '
+                print(f'{prompt:<{prompt_width}}{v}', file=f)
+
+        df_results.to_csv(
+            f'./data/infutor+census/For_High-Loss_Areas_{infutor_start}-'
+            f'{infutor_end}.csv'
+        )
 
     if verbose:
         with pd.option_context('display.max_columns', None):

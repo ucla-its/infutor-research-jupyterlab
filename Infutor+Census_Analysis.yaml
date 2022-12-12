@@ -1,5 +1,6 @@
 verbose: true
 lines per chunk: 1_250_000
+write to file: true
 
 periods:
   - infutor interval: [2008, 2012]
