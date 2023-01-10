@@ -74,6 +74,9 @@ def census_col_by_area(name, df=df_census):
     se = df[['tractid', name]].set_index('tractid').squeeze()
     return se
 
+def count_moves(moves):
+    return moves.shape[0]
+
 def agg_moves_by_area(
     moves, by, func='size', subset=[], fill_value=0, areas=se_high_loss_areas
 ):
@@ -559,15 +562,15 @@ for period in periods:
 
     entire_sample_results[
         "Number of total moves"
-    ] = df_moves.shape[0]
+    ] = count_moves(df_moves)
 
     entire_sample_results[
         "Number of total moves that began and ended in the same tract"
-    ] = df_moves.loc[True, 'high-loss', 'high-loss'].shape[0]
+    ] = count_moves(df_moves.loc[True, 'high-loss', 'high-loss'])
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
-    ] = df_moves.loc[:, :, 'outside'].shape[0]
+    ] = count_moves(df_moves.loc[:, :, 'outside'])
 
 
     entire_sample_results[
@@ -583,8 +586,8 @@ for period in periods:
 
     entire_sample_results[
         "Share of moves that stay within tract"
-    ] = df_moves.loc[True, 'high-loss', :].shape[0] \
-        / df_moves.loc[:, 'high-loss', :].shape[0]
+    ] = count_moves(df_moves.loc[True, 'high-loss', :]) \
+        / count_moves(df_moves.loc[:, 'high-loss', :])
 
 
     entire_sample_results[
