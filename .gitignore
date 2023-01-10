@@ -1,5 +1,6 @@
 *.dta
 *.csv
+*.xlsx
 *.pkl
 *.pickle
 *_secret
