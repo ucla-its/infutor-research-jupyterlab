@@ -430,7 +430,7 @@ for period in periods:
 
     entire_sample_results[
         "Number of total moves that began and ended in the same tract"
-    ] = count_moves(df_moves.loc[True, 'high-loss', 'high-loss'])
+    ] = count_moves(df_moves.loc[True, :, :])
 
     entire_sample_results[
         "Number of total moves that ended outside LA or Orange Counties"
@@ -450,8 +450,7 @@ for period in periods:
 
     entire_sample_results[
         "Share of moves that stay within tract"
-    ] = count_moves(df_moves.loc[True, 'high-loss', :]) \
-        / count_moves(df_moves.loc[:, 'high-loss', :])
+    ] = count_moves(df_moves.loc[True, :, :]) / count_moves(df_moves)
 
 
     entire_sample_results[
