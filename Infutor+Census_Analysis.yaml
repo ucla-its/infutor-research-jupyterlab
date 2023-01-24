@@ -10,3 +10,6 @@ periods:
 
 # Only if verbose=true
 analysis to print: []
+
+# Only if write to file=true
+include timestamp: true
